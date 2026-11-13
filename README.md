@@ -2,31 +2,35 @@
 
 **Byte-pair encoding from scratch, small enough to read in one sitting.**
 
-Tokenizers are the part of modern language models people skip: 100 lines of merge logic that decide what the model can see. `bpelab` trains a real byte-level BPE tokenizer on your own text, shows you the merges it learned, and measures how much it actually compresses. No dependencies, no downloads, no model weights.
+Tokenizers are the part of modern language models people skip: a hundred lines of merge logic that decide what the model can see. `bpelab` trains a real byte-level BPE tokenizer on your own text, shows you the merges it learned, and measures how much it actually compresses. No dependencies, no downloads, no model weights.
 
 ```bash
-python -m bpelab train README.md --vocab-size 400 --show-merges 5
+python -m bpelab train corpus.txt --vocab-size 400 --show-merges 5
 ```
 
-```json
+`train` prints a compression report and the merge table it learned:
+
+```text
 {
-  "characters": 4210,
-  "utf8_bytes": 4210,
-  "tokens": 1187,
+  "characters": ...,
+  "utf8_bytes": ...,
+  "tokens": ...,
   "vocab_size": 400,
-  "chars_per_token": 3.547,
-  "bytes_per_token": 3.547
+  "chars_per_token": ...,
+  "bytes_per_token": ...,
+  "tokens_per_byte": ...
 }
 
 first merges learned (most frequent first):
-  #0    b'e' + b' '          -> b'e '
-  #1    b't' + b'h'          -> b'th'
-  #2    b'th' + b'e'         -> b'the'
-  #3    b'i' + b'n'          -> b'in'
-  #4    b'the' + b' '        -> b'the '
+  #0            ' ' + ' '          -> '  '
+  #1           '  ' + '  '         -> '    '
+  #2            'e' + 'n'          -> 'en'
+  #3            'i' + 'n'          -> 'in'
 ```
 
-You can read that and understand it: start from bytes, count adjacent pairs, merge the most frequent one, repeat. Each merge adds exactly one token to the vocabulary.
+Those are the real first merges from a whitespace-heavy Markdown corpus: indentation gets merged before words do, because it genuinely is the most frequent adjacent pair. Train on ordinary prose and the first merges are letter pairs like `th`, `he`, `in`; train on Python source and the winners are `    `, `self`, `(`, `)`, ` = `.
+
+The whole algorithm fits in your head: start from bytes, count adjacent pairs, merge the most frequent one, repeat. Each merge adds exactly one token to the vocabulary.
 
 ## Install
 
@@ -39,7 +43,7 @@ Python 3.9+, standard library only.
 ## What it does
 
 1. **Pre-tokenises** on whitespace and word boundaries, keeping whitespace runs as their own units. That is what makes `decode(encode(text)) == text` true for any Unicode input, including emoji, tabs and trailing spaces.
-2. **Trains** by counting adjacent pairs weighted by word frequency and merging the winner. Pair statistics are updated incrementally, so training is fast even in pure Python.
+2. **Trains** by counting adjacent pairs weighted by word frequency and merging the winner. Pair statistics are updated incrementally, so training stays fast even in pure Python.
 3. **Encodes** by applying merges in rank order (the standard greedy algorithm), and **decodes** by concatenating the bytes each token stands for.
 4. **Reports** tokens, bytes per token and compression, plus the merge table so you can see what the vocabulary is made of.
 
@@ -61,14 +65,16 @@ bpelab stats tokenizer.json corpus.txt
 bpelab demo corpus.txt --sizes 300,500,1000,2000
 ```
 
-`bpelab demo` prints a table you can paste into a report:
+`bpelab demo` prints a table comparing vocabulary sizes:
 
-```
+```text
  vocab     tokens  chars/token    tokens/byte
-   300       1421        2.963          0.337
-   500       1018        4.136          0.242
-  1000        744        5.660          0.177
+   300        ...          ...            ...
+   500        ...          ...            ...
+  1000        ...          ...            ...
 ```
+
+Bigger vocabularies mean fewer tokens for the same text, at the cost of a larger embedding matrix. That trade-off is the whole reason tokenizer design is still interesting.
 
 ## Library use
 
@@ -85,11 +91,11 @@ print(compression_report(tokenizer, "hello world"))
 
 ## What it deliberately does not do
 
-- No NFKC normalisation or language-specific pre-tokenisation regex (`bpelab` splits on whitespace only).
-- No special-token splicing into arbitrary text, no chat templates.
-- No parallelism: this is a teaching implementation, not a training pipeline for a 50k vocabulary.
+- No NFKC normalisation or language-specific pre-tokenisation regex; `bpelab` splits on whitespace only.
+- No special-token splicing into arbitrary text and no chat templates.
+- No parallelism: this is a teaching implementation, not a training pipeline for a 100k vocabulary.
 
-Those are exactly the parts worth adding once the 100 lines are clear.
+Those are exactly the parts worth adding once the hundred lines are clear.
 
 ## Tests
 
